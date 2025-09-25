@@ -1,338 +1,478 @@
 #!/usr/bin/env python3
 """
-Traditional Imperative Approach: Text Processing Pipeline
+Traditional Imperative Approach: Contact List Importer
 
 This demonstrates the traditional way of programming where we must explicitly
-handle every possible input format and scenario with rigid conditional logic.
-The complexity grows exponentially as we add more formats and edge cases.
+handle every possible CSV format, column name variation, and data structure.
+The complexity explodes as we try to handle all the edge cases.
 """
 
-import json
 import csv
-import xml.etree.ElementTree as ET
 import re
 from io import StringIO
-from typing import Dict, List, Any, Optional, Union
+from typing import Dict, List, Optional, Tuple, Any
 
 
-class TraditionalTextProcessor:
+class TraditionalContactImporter:
     """
-    Traditional imperative approach to text processing.
+    Traditional imperative approach to contact importing.
     
     Notice the explosion of conditional logic needed to handle every possible
-    combination of input format, structure, and extraction requirement.
+    combination of CSV format, column names, delimiters, and data structures.
     """
     
     def __init__(self):
         self.email_pattern = re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b')
-        self.phone_pattern = re.compile(r'\b\d{3}[-.]?\d{3}[-.]?\d{4}\b')
+        self.phone_pattern = re.compile(r'\+?[\d\s\-\(\)\.]{10,}')
+        
+        # All possible column name variations we need to handle
+        self.first_name_variations = [
+            'first name', 'first_name', 'fname', 'first', 'given name', 
+            'given_name', 'given', 'nombre', 'prenom', 'vorname'
+        ]
+        self.last_name_variations = [
+            'last name', 'last_name', 'lname', 'last', 'surname', 
+            'family name', 'family_name', 'family', 'apellidos', 
+            'apellido', 'nom', 'nachname'
+        ]
+        self.email_variations = [
+            'email', 'e-mail', 'email address', 'email_address', 
+            'mail', 'correo', 'courriel', 'e_mail'
+        ]
+        self.phone_variations = [
+            'phone', 'phone number', 'phone_number', 'tel', 'telephone', 
+            'mobile', 'cell', 'cellular', 'work phone', 'home phone',
+            'teléfono', 'telefono', 'téléphone'
+        ]
+        self.company_variations = [
+            'company', 'organization', 'org', 'employer', 'business',
+            'empresa', 'société', 'unternehmen'
+        ]
+        self.full_name_variations = [
+            'name', 'full name', 'full_name', 'display name', 
+            'contact name', 'contact', 'nombre completo'
+        ]
     
-    def process_text(self, text: str, extract_field: str) -> List[str]:
+    def import_contacts(self, csv_text: str, task: str = "Import contacts") -> List[Dict[str, Optional[str]]]:
         """
-        Main processing function with rigid branching logic.
+        Main import function with rigid branching logic.
         
         This is where the complexity explodes - we need explicit handling
-        for every possible combination of input format and extraction type.
+        for every possible combination of CSV format and column structure.
         """
         
-        # First, try to detect the format
-        format_type = self._detect_format(text)
+        # Step 1: Detect delimiter (explicit logic for each possibility)
+        delimiter = self._detect_delimiter(csv_text)
         
-        if format_type == "json":
-            return self._process_json(text, extract_field)
-        elif format_type == "csv":
-            return self._process_csv(text, extract_field)
-        elif format_type == "xml":
-            return self._process_xml(text, extract_field)
-        elif format_type == "plain_text":
-            return self._process_plain_text(text, extract_field)
-        else:
-            raise ValueError(f"Unsupported format: {format_type}")
-    
-    def _detect_format(self, text: str) -> str:
-        """
-        Rigid format detection with explicit rules for each format.
-        
-        This becomes a maintenance nightmare as we add more formats.
-        """
-        text = text.strip()
-        
-        # JSON detection
-        if (text.startswith('{') and text.endswith('}')) or \
-           (text.startswith('[') and text.endswith(']')):
-            try:
-                json.loads(text)
-                return "json"
-            except json.JSONDecodeError:
-                pass
-        
-        # XML detection
-        if text.startswith('<') and text.endswith('>'):
-            try:
-                ET.fromstring(text)
-                return "xml"
-            except ET.ParseError:
-                pass
-        
-        # CSV detection (very basic)
-        if ',' in text and '\n' in text:
-            lines = text.split('\n')
-            if len(lines) > 1:
-                # Check if first two lines have same number of commas
-                first_commas = lines[0].count(',')
-                second_commas = lines[1].count(',') if len(lines) > 1 else 0
-                if first_commas > 0 and first_commas == second_commas:
-                    return "csv"
-        
-        # Default to plain text
-        return "plain_text"
-    
-    def _process_json(self, text: str, extract_field: str) -> List[str]:
-        """
-        Process JSON with explicit handling for different structures.
-        
-        Notice how we need separate logic for arrays vs objects,
-        nested vs flat structures, etc.
-        """
+        # Step 2: Parse CSV with detected delimiter
         try:
-            data = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON: {e}")
+            if delimiter == ',':
+                parsed_data = self._parse_comma_csv(csv_text)
+            elif delimiter == ';':
+                parsed_data = self._parse_semicolon_csv(csv_text)
+            elif delimiter == '\t':
+                parsed_data = self._parse_tab_csv(csv_text)
+            elif delimiter == '|':
+                parsed_data = self._parse_pipe_csv(csv_text)
+            else:
+                raise ValueError(f"Unsupported delimiter: {delimiter}")
+        except Exception as e:
+            raise ValueError(f"CSV parsing failed: {e}")
         
-        results = []
+        # Step 3: Detect if headers exist (more explicit logic)
+        has_headers = self._detect_headers(parsed_data['rows'][0] if parsed_data['rows'] else [])
         
-        if isinstance(data, list):
-            # Handle JSON array
-            for item in data:
-                if isinstance(item, dict):
-                    # Handle object in array
-                    if extract_field == "email":
-                        results.extend(self._extract_emails_from_dict(item))
-                    elif extract_field == "phone":
-                        results.extend(self._extract_phones_from_dict(item))
-                    elif extract_field in item:
-                        results.append(str(item[extract_field]))
-                elif isinstance(item, str):
-                    # Handle string in array
-                    if extract_field == "email":
-                        results.extend(self.email_pattern.findall(item))
-                    elif extract_field == "phone":
-                        results.extend(self.phone_pattern.findall(item))
-        
-        elif isinstance(data, dict):
-            # Handle JSON object
-            if extract_field == "email":
-                results.extend(self._extract_emails_from_dict(data))
-            elif extract_field == "phone":
-                results.extend(self._extract_phones_from_dict(data))
-            elif extract_field in data:
-                value = data[extract_field]
-                if isinstance(value, list):
-                    results.extend([str(v) for v in value])
-                else:
-                    results.append(str(value))
-        
-        return results
-    
-    def _process_csv(self, text: str, extract_field: str) -> List[str]:
-        """
-        Process CSV with explicit handling for different delimiters and structures.
-        
-        We need separate logic for headers vs no headers, different delimiters,
-        quoted vs unquoted fields, etc.
-        """
-        results = []
-        
-        # Try different delimiters
-        for delimiter in [',', '\t', ';', '|']:
-            try:
-                # Try with headers
-                reader = csv.DictReader(StringIO(text), delimiter=delimiter)
-                first_row = next(reader, None)
-                if first_row and extract_field in first_row:
-                    results.append(first_row[extract_field])
-                    for row in reader:
-                        if extract_field in row and row[extract_field]:
-                            results.append(row[extract_field])
-                    break
-            except:
-                continue
-        
-        # If no headers worked, try without headers
-        if not results:
-            for delimiter in [',', '\t', ';', '|']:
-                try:
-                    reader = csv.reader(StringIO(text), delimiter=delimiter)
-                    rows = list(reader)
-                    if len(rows) > 0:
-                        # Assume first column contains what we want
-                        for row in rows:
-                            if len(row) > 0:
-                                if extract_field == "email":
-                                    results.extend(self.email_pattern.findall(row[0]))
-                                elif extract_field == "phone":
-                                    results.extend(self.phone_pattern.findall(row[0]))
-                                else:
-                                    results.append(row[0])
-                        break
-                except:
-                    continue
-        
-        return results
-    
-    def _process_xml(self, text: str, extract_field: str) -> List[str]:
-        """
-        Process XML with explicit handling for different structures.
-        
-        We need separate logic for attributes vs text content,
-        different nesting levels, namespaces, etc.
-        """
-        try:
-            root = ET.fromstring(text)
-        except ET.ParseError as e:
-            raise ValueError(f"Invalid XML: {e}")
-        
-        results = []
-        
-        # Try to find elements with the field name
-        for elem in root.iter():
-            # Check element tag
-            if elem.tag.lower() == extract_field.lower():
-                if elem.text:
-                    results.append(elem.text)
-            
-            # Check attributes
-            for attr_name, attr_value in elem.attrib.items():
-                if attr_name.lower() == extract_field.lower():
-                    results.append(attr_value)
-            
-            # For email/phone, search in text content
-            if elem.text:
-                if extract_field == "email":
-                    results.extend(self.email_pattern.findall(elem.text))
-                elif extract_field == "phone":
-                    results.extend(self.phone_pattern.findall(elem.text))
-        
-        return results
-    
-    def _process_plain_text(self, text: str, extract_field: str) -> List[str]:
-        """
-        Process plain text with pattern matching.
-        
-        Limited to what we can extract with regex patterns.
-        """
-        if extract_field == "email":
-            return self.email_pattern.findall(text)
-        elif extract_field == "phone":
-            return self.phone_pattern.findall(text)
+        # Step 4: Process based on header detection
+        if has_headers:
+            return self._process_csv_with_headers(parsed_data['rows'])
         else:
-            # Can't extract arbitrary fields from plain text
+            return self._process_csv_without_headers(parsed_data['rows'])
+    
+    def _detect_delimiter(self, text: str) -> str:
+        """
+        Rigid delimiter detection with explicit rules.
+        
+        We must check each delimiter type with specific logic.
+        """
+        first_line = text.split('\n')[0] if text else ""
+        
+        # Count each delimiter type
+        comma_count = first_line.count(',')
+        semicolon_count = first_line.count(';')
+        tab_count = first_line.count('\t')
+        pipe_count = first_line.count('|')
+        
+        # Explicit decision tree for delimiter selection
+        if comma_count > 0 and comma_count >= semicolon_count and comma_count >= tab_count and comma_count >= pipe_count:
+            return ','
+        elif semicolon_count > 0 and semicolon_count >= tab_count and semicolon_count >= pipe_count:
+            return ';'
+        elif tab_count > 0 and tab_count >= pipe_count:
+            return '\t'
+        elif pipe_count > 0:
+            return '|'
+        else:
+            return ','  # Default fallback
+    
+    def _parse_comma_csv(self, text: str) -> Dict[str, Any]:
+        """Parse comma-delimited CSV with specific comma handling."""
+        try:
+            reader = csv.reader(StringIO(text), delimiter=',')
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+            return {"success": True, "rows": rows}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _parse_semicolon_csv(self, text: str) -> Dict[str, Any]:
+        """Parse semicolon-delimited CSV with specific semicolon handling."""
+        try:
+            reader = csv.reader(StringIO(text), delimiter=';')
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+            return {"success": True, "rows": rows}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _parse_tab_csv(self, text: str) -> Dict[str, Any]:
+        """Parse tab-delimited CSV with specific tab handling."""
+        try:
+            reader = csv.reader(StringIO(text), delimiter='\t')
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+            return {"success": True, "rows": rows}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _parse_pipe_csv(self, text: str) -> Dict[str, Any]:
+        """Parse pipe-delimited CSV with specific pipe handling."""
+        try:
+            reader = csv.reader(StringIO(text), delimiter='|')
+            rows = [row for row in reader if any(cell.strip() for cell in row)]
+            return {"success": True, "rows": rows}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def _detect_headers(self, first_row: List[str]) -> bool:
+        """
+        Detect headers with explicit rules for each scenario.
+        """
+        if not first_row:
+            return False
+        
+        # Check each cell in first row
+        header_score = 0
+        for cell in first_row:
+            cell = cell.strip().lower()
+            
+            # Explicit checks for header patterns
+            if any(name_var in cell for name_var in self.first_name_variations):
+                header_score += 2
+            elif any(name_var in cell for name_var in self.last_name_variations):
+                header_score += 2
+            elif any(email_var in cell for email_var in self.email_variations):
+                header_score += 2
+            elif any(phone_var in cell for phone_var in self.phone_variations):
+                header_score += 2
+            elif any(company_var in cell for company_var in self.company_variations):
+                header_score += 2
+            elif any(name_var in cell for name_var in self.full_name_variations):
+                header_score += 2
+            elif cell and not cell.replace('.', '').replace('-', '').replace('(', '').replace(')', '').replace(' ', '').isdigit():
+                if '@' not in cell:  # Not an email
+                    header_score += 1
+        
+        return header_score >= len(first_row)
+    
+    def _process_csv_with_headers(self, rows: List[List[str]]) -> List[Dict[str, Optional[str]]]:
+        """
+        Process CSV with headers - explicit mapping for each column type.
+        """
+        if not rows:
             return []
+        
+        headers = [h.strip().lower() for h in rows[0]]
+        contacts = []
+        
+        for row in rows[1:]:
+            contact = self._extract_contact_with_headers(headers, row)
+            contacts.append(contact)
+        
+        return contacts
     
-    def _extract_emails_from_dict(self, data: dict) -> List[str]:
-        """Extract emails from dictionary values."""
-        emails = []
-        for key, value in data.items():
-            if isinstance(value, str):
-                emails.extend(self.email_pattern.findall(value))
-            elif isinstance(value, dict):
-                emails.extend(self._extract_emails_from_dict(value))
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, str):
-                        emails.extend(self.email_pattern.findall(item))
-                    elif isinstance(item, dict):
-                        emails.extend(self._extract_emails_from_dict(item))
-        return emails
+    def _process_csv_without_headers(self, rows: List[List[str]]) -> List[Dict[str, Optional[str]]]:
+        """
+        Process CSV without headers - must guess column meanings.
+        """
+        contacts = []
+        
+        for row in rows:
+            contact = self._extract_contact_without_headers(row)
+            contacts.append(contact)
+        
+        return contacts
     
-    def _extract_phones_from_dict(self, data: dict) -> List[str]:
-        """Extract phone numbers from dictionary values."""
-        phones = []
-        for key, value in data.items():
-            if isinstance(value, str):
-                phones.extend(self.phone_pattern.findall(value))
-            elif isinstance(value, dict):
-                phones.extend(self._extract_phones_from_dict(value))
-            elif isinstance(value, list):
-                for item in value:
-                    if isinstance(item, str):
-                        phones.extend(self.phone_pattern.findall(item))
-                    elif isinstance(item, dict):
-                        phones.extend(self._extract_phones_from_dict(item))
-        return phones
+    def _extract_contact_with_headers(self, headers: List[str], row: List[str]) -> Dict[str, Optional[str]]:
+        """
+        Extract contact with explicit header mapping logic.
+        """
+        contact = {
+            "first_name": None,
+            "last_name": None,
+            "email": None,
+            "phone": None,
+            "company": None
+        }
+        
+        # Create row dictionary
+        row_dict = {}
+        for i, value in enumerate(row):
+            if i < len(headers):
+                row_dict[headers[i]] = value.strip() if value else ""
+        
+        # Explicit mapping for first name
+        for header, value in row_dict.items():
+            if any(var in header for var in self.first_name_variations):
+                contact["first_name"] = value if value else None
+                break
+        
+        # Explicit mapping for last name
+        for header, value in row_dict.items():
+            if any(var in header for var in self.last_name_variations):
+                contact["last_name"] = value if value else None
+                break
+        
+        # If no separate first/last, look for full name
+        if not contact["first_name"] and not contact["last_name"]:
+            for header, value in row_dict.items():
+                if any(var in header for var in self.full_name_variations):
+                    if value:
+                        first, last = self._split_full_name(value)
+                        contact["first_name"] = first
+                        contact["last_name"] = last
+                    break
+        
+        # Explicit mapping for email
+        for header, value in row_dict.items():
+            if any(var in header for var in self.email_variations):
+                if value and '@' in value:
+                    email = self._extract_email_from_text(value)
+                    if email:
+                        contact["email"] = email
+                break
+        
+        # If no explicit email field, search all fields
+        if not contact["email"]:
+            for value in row_dict.values():
+                if value and '@' in value:
+                    email = self._extract_email_from_text(value)
+                    if email:
+                        contact["email"] = email
+                        break
+        
+        # Explicit mapping for phone
+        for header, value in row_dict.items():
+            if any(var in header for var in self.phone_variations):
+                if value:
+                    phone = self._normalize_phone(value)
+                    if phone:
+                        contact["phone"] = phone
+                break
+        
+        # If no explicit phone field, search all fields
+        if not contact["phone"]:
+            for value in row_dict.values():
+                if value:
+                    phone = self._normalize_phone(value)
+                    if phone:
+                        contact["phone"] = phone
+                        break
+        
+        # Explicit mapping for company
+        for header, value in row_dict.items():
+            if any(var in header for var in self.company_variations):
+                contact["company"] = value if value else None
+                break
+        
+        return contact
+    
+    def _extract_contact_without_headers(self, row: List[str]) -> Dict[str, Optional[str]]:
+        """
+        Extract contact without headers - must guess based on patterns.
+        """
+        contact = {
+            "first_name": None,
+            "last_name": None,
+            "email": None,
+            "phone": None,
+            "company": None
+        }
+        
+        # Try to guess column meanings based on content patterns
+        for i, value in enumerate(row):
+            value = value.strip() if value else ""
+            
+            if not value:
+                continue
+            
+            # Check if it's an email
+            if '@' in value and not contact["email"]:
+                email = self._extract_email_from_text(value)
+                if email:
+                    contact["email"] = email
+                    continue
+            
+            # Check if it's a phone number
+            phone = self._normalize_phone(value)
+            if phone and not contact["phone"]:
+                contact["phone"] = phone
+                continue
+            
+            # Check if it looks like a name (first column usually)
+            if i == 0 and not contact["first_name"]:
+                if ' ' in value:
+                    # Looks like full name
+                    first, last = self._split_full_name(value)
+                    contact["first_name"] = first
+                    contact["last_name"] = last
+                else:
+                    # Single name, assume first name
+                    contact["first_name"] = value
+                continue
+            
+            # Remaining columns might be company
+            if i >= 2 and not contact["company"]:
+                # Skip if it looks like personal data
+                if '@' not in value and not self._normalize_phone(value):
+                    contact["company"] = value
+        
+        return contact
+    
+    def _split_full_name(self, full_name: str) -> Tuple[Optional[str], Optional[str]]:
+        """Split full name into first and last name."""
+        if not full_name or not full_name.strip():
+            return None, None
+        
+        parts = full_name.strip().split()
+        
+        if len(parts) == 1:
+            return parts[0], None
+        elif len(parts) == 2:
+            return parts[0], parts[1]
+        else:
+            # More than 2 parts - first is first name, rest is last name
+            return parts[0], ' '.join(parts[1:])
+    
+    def _extract_email_from_text(self, text: str) -> Optional[str]:
+        """Extract email from text using regex."""
+        if not text:
+            return None
+        
+        match = self.email_pattern.search(text)
+        return match.group(0) if match else None
+    
+    def _normalize_phone(self, value: str) -> Optional[str]:
+        """
+        Normalize phone number with explicit formatting rules.
+        """
+        if not value:
+            return None
+        
+        # Extract digits only
+        digits = re.sub(r'\D', '', value)
+        
+        # Explicit formatting based on digit count
+        if len(digits) == 10:
+            # US format: (XXX) XXX-XXXX
+            return f"({digits[:3]}) {digits[3:6]}-{digits[6:]}"
+        elif len(digits) == 11 and digits.startswith('1'):
+            # US format with country code: +1 (XXX) XXX-XXXX
+            return f"+1 ({digits[1:4]}) {digits[4:7]}-{digits[7:]}"
+        elif len(digits) >= 10:
+            # International format - try to preserve original formatting
+            match = self.phone_pattern.search(value)
+            if match:
+                return match.group(0).strip()
+        
+        return None
 
 
 def main():
     """
     Demonstration of the traditional approach.
     
-    Notice how rigid and limited this is - we can only handle the exact
-    scenarios we've explicitly programmed for.
+    Notice how rigid and complex this is - we must explicitly handle
+    every possible CSV format and column name variation.
     """
     
-    # Example inputs
+    # Same test cases as agent approach
     test_cases = [
         {
-            "name": "JSON Array",
-            "data": '''[
-                {"name": "John Doe", "email": "john@example.com", "phone": "555-123-4567"},
-                {"name": "Jane Smith", "email": "jane@test.org", "phone": "555-987-6543"}
-            ]''',
-            "extract": "email"
+            "name": "Standard CRM Export",
+            "data": """First Name,Last Name,Email,Phone,Company
+John,Doe,john@example.com,555-123-4567,Acme Corp
+Jane,Smith,jane@test.org,555-987-6543,Tech Inc""",
+            "task": "Import standard contact list"
         },
         {
-            "name": "CSV with Headers",
-            "data": '''name,email,phone
-John Doe,john@example.com,555-123-4567
-Jane Smith,jane@test.org,555-987-6543''',
-            "extract": "email"
+            "name": "Combined Name Field",
+            "data": """Full Name,Email Address,Work Phone
+John Doe,john@example.com,(555) 123-4567
+Jane Smith,jane@test.org,555.987.6543""",
+            "task": "Import contacts with combined names"
         },
         {
-            "name": "XML",
-            "data": '''<contacts>
-                <person email="john@example.com" phone="555-123-4567">John Doe</person>
-                <person email="jane@test.org" phone="555-987-6543">Jane Smith</person>
-            </contacts>''',
-            "extract": "email"
+            "name": "International Format",
+            "data": """Nombre,Apellidos,Correo,Teléfono
+Luis,García,luis@empresa.es,+34 91 123 4567
+María,López,maria@test.es,+34 93 987 6543""",
+            "task": "Import Spanish contact list"
         },
         {
-            "name": "Plain Text",
-            "data": '''Contact John at john@example.com or call 555-123-4567.
-Also reach Jane at jane@test.org or 555-987-6543.''',
-            "extract": "email"
+            "name": "Pipe-Delimited No Headers",
+            "data": """John Doe|john@example.com|555-123-4567|Acme Corp
+Jane Smith|jane@test.org|555-987-6543|Tech Inc""",
+            "task": "Import pipe-delimited data without headers"
+        },
+        {
+            "name": "Mixed Format with Notes",
+            "data": """Contact,Primary Info,Notes
+John Doe,john@example.com,Phone: 555-123-4567 Company: Acme
+Jane Smith,Call 555-987-6543,Email: jane@test.org""",
+            "task": "Import contacts with mixed data in notes"
         }
     ]
     
-    processor = TraditionalTextProcessor()
+    importer = TraditionalContactImporter()
     
-    print("=" * 60)
-    print("TRADITIONAL IMPERATIVE APPROACH - TEXT PROCESSING")
-    print("=" * 60)
+    print("=" * 70)
+    print("TRADITIONAL IMPERATIVE APPROACH - CONTACT IMPORTER")
+    print("=" * 70)
     print()
-    print("Notice the rigid, explicit handling of each format type.")
-    print("Adding new formats or extraction types requires modifying")
+    print("Notice the rigid, explicit handling of each CSV format and")
+    print("column name variation. Adding new formats requires modifying")
     print("the core logic with more conditional branches.")
     print()
     
     for test_case in test_cases:
         print(f"Processing: {test_case['name']}")
-        print(f"Extracting: {test_case['extract']}")
+        print(f"Task: {test_case['task']}")
         
         try:
-            results = processor.process_text(test_case['data'], test_case['extract'])
-            print(f"Results: {results}")
+            contacts = importer.import_contacts(test_case['data'], test_case['task'])
+            print("Results:")
+            for i, contact in enumerate(contacts, 1):
+                print(f"  {i}. {contact}")
         except Exception as e:
             print(f"Error: {e}")
         
-        print("-" * 40)
+        print("-" * 50)
+        print()
     
-    print()
     print("LIMITATIONS OF TRADITIONAL APPROACH:")
-    print("• Must explicitly handle every format combination")
-    print("• Adding new formats requires core code changes")
+    print("• Must explicitly handle every CSV format combination")
+    print("• Requires hardcoded lists of column name variations")
+    print("• Adding new languages/formats requires core code changes")
     print("• Complex branching logic becomes unmaintainable")
-    print("• Limited flexibility for edge cases")
-    print("• Cannot adapt to unexpected input variations")
+    print("• Limited flexibility for unexpected data structures")
+    print("• Cannot adapt to new column naming conventions")
 
 
 if __name__ == "__main__":

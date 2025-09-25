@@ -114,16 +114,17 @@ the requested information from any input format."
 # That's it! The agent figures out which tools to use and how.
 ```
 
-## The Demonstration: Text Processing Pipeline
+## The Demonstration: Contact List Importer
 
-This project compares both approaches using a classic computer science problem: **processing text data in multiple formats** (JSON, CSV, XML, plain text) to extract specific information.
+This project compares both approaches using a classic computer science problem: **importing contact data from various CSV formats** and normalizing it into a consistent structure.
 
 ### Why This Example?
 
-- **Classic CS Problem**: Found in any programming textbook
-- **Exponential Complexity**: Traditional approach requires explicit handling of every format × extraction type combination
-- **Not Obviously AI**: This is about programming logic, not document understanding
-- **Clear Business Logic**: The tools implement specific, reusable functions
+- **Classic CS Problem**: Contact importing is found in every business application
+- **Exponential Complexity**: Traditional approach requires explicit handling of every CSV format × column name × delimiter combination
+- **Real-World Relevant**: Everyone understands the need to import contact lists
+- **Clear Business Logic**: The tools implement specific, reusable functions (parse CSV, normalize contacts, format output)
+- **International Challenge**: Different languages use different field names (Nombre vs First Name vs Prénom)
 
 ## Running the Examples
 
@@ -148,11 +149,11 @@ This project compares both approaches using a classic computer science problem: 
 python traditional_approach.py
 ```
 
-This shows the rigid, branching logic required to handle different input formats. Notice:
-- Explicit format detection
-- Separate handling for each format type
-- Complex nested conditionals
-- Limited flexibility for edge cases
+This shows the rigid, branching logic required to handle different CSV formats. Notice:
+- Explicit delimiter detection for each type (comma, semicolon, pipe, tab)
+- Hardcoded lists of column name variations in multiple languages
+- Complex nested conditionals for headers vs no headers
+- Limited flexibility for unexpected CSV structures
 
 ### Run the Agent Approach
 
@@ -160,33 +161,33 @@ This shows the rigid, branching logic required to handle different input formats
 python agent_approach.py
 ```
 
-This shows the agent using tools flexibly to handle the same inputs. Notice:
-- No format detection logic
-- Agent chooses appropriate tools
-- Handles edge cases automatically
-- Easy to extend with new tools
+This shows the agent using tools flexibly to handle the same CSV inputs. Notice:
+- No explicit delimiter detection logic needed
+- Agent automatically adapts to different column names and languages
+- Handles mixed data formats (e.g., phone numbers in notes fields)
+- Easy to extend with new contact processing tools
 
 ## The Key Insight
 
 ### Traditional Programming: Anticipate Everything
 ```python
-# You must explicitly handle every possible scenario
-if format == "json" and structure == "array" and has_field:
-    # Specific logic for this exact case
-elif format == "json" and structure == "object" and has_field:
-    # Different logic for this case
-elif format == "csv" and has_headers and delimiter == ",":
-    # Yet another specific case
-# ... hundreds of combinations
+# You must explicitly handle every possible CSV scenario
+if delimiter == "," and has_headers and "first name" in headers:
+    # Specific logic for comma-delimited with English headers
+elif delimiter == ";" and has_headers and "nombre" in headers:
+    # Different logic for semicolon-delimited with Spanish headers
+elif delimiter == "|" and not has_headers:
+    # Yet another specific case for pipe-delimited without headers
+# ... hundreds of combinations for every language/format
 ```
 
 ### Agent Programming: Delegate with Tools
 ```python
 # You only write business logic tools
-tools = [parse_json, parse_csv, extract_field, extract_emails]
+tools = [parse_csv, normalize_contact, format_contacts]
 
 # Agent decides how to combine them
-agent_prompt = "Use these tools to extract emails from the input"
+agent_prompt = "Import contacts from any CSV format into standard fields"
 ```
 
 ## The Business Logic Principle
@@ -194,71 +195,68 @@ agent_prompt = "Use these tools to extract emails from the input"
 As Werner Vogels (CTO of AWS) predicted: **"In the future, the only code you will write is business logic."**
 
 In the agent approach:
-- ✅ **You write**: Simple, focused business logic functions
-- ✅ **Agent handles**: Deciding which tools to use and when
-- ✅ **Result**: More flexible, maintainable, and adaptable programs
+- ✅ **You write**: Simple, focused business logic functions (`parse_csv`, `normalize_contact`)
+- ✅ **Agent handles**: Deciding which tools to use and adapting to CSV variations
+- ✅ **Result**: Handles international formats, mixed data, unexpected structures automatically
 
 In the traditional approach:
-- ❌ **You write**: Complex branching logic for every scenario
-- ❌ **You handle**: All possible input combinations explicitly
-- ❌ **Result**: Rigid, brittle, hard-to-maintain code
+- ❌ **You write**: Complex branching logic for every CSV format and language combination
+- ❌ **You handle**: All possible delimiter, header, and column name variations explicitly
+- ❌ **Result**: Rigid, breaks on unexpected formats, hard to extend to new languages
 
 ## Code Comparison
 
 ### Traditional Approach Complexity
-The `traditional_approach.py` file contains **~300 lines** of complex conditional logic:
+The `traditional_approach.py` file contains **~400 lines** of complex conditional logic:
 
-- Format detection with explicit rules
-- Separate processing methods for each format
-- Nested conditionals for different structures
-- Rigid error handling
-- Limited extensibility
+- Explicit delimiter detection for each type (comma, semicolon, pipe, tab)
+- Hardcoded lists of column name variations in multiple languages
+- Separate processing methods for headers vs no headers
+- Complex name parsing logic for different formats
+- Rigid error handling that breaks on unexpected inputs
 
 ### Agent Approach Simplicity
-The `agent_approach.py` file contains **~200 lines** but most is tool definitions:
+The `agent_approach.py` file contains **~300 lines** but most is tool definitions:
 
-- **~50 lines** of actual business logic (the tools)
-- **~150 lines** of agent setup and OpenAI integration
-- No format detection needed
-- No complex branching logic
-- Easily extensible with new tools
+- **~100 lines** of actual business logic (the tools)
+- **~200 lines** of agent setup and OpenAI integration
+- No explicit delimiter detection needed
+- No hardcoded column name lists
+- Easily extensible with new contact processing tools
 
 ## Real-World Impact
 
-### Adding New Formats
+### Adding New Languages
 
 **Traditional Approach:**
 ```python
-# Must modify core logic
-def _detect_format(self, text):
-    # Add new detection rules
-    if text.startswith('<?xml'):
-        return "xml"
-    elif text.startswith('---'):  # YAML
-        return "yaml"  # NEW FORMAT
-    # ... update all processing methods
+# Must modify core logic and add to hardcoded lists
+self.first_name_variations = [
+    'first name', 'first_name', 'fname', 'first', 'given name', 
+    'given_name', 'given', 'nombre', 'prenom', 'vorname',
+    'имя', '名前', '이름'  # NEW LANGUAGES - must add everywhere
+]
+# ... update all processing methods with new variations
 ```
 
 **Agent Approach:**
 ```python
-# Just add a new tool
-def parse_yaml(text):
-    return yaml.safe_load(text)
-
-# Agent automatically knows how to use it
+# No changes needed - agent adapts automatically
+# Just provide examples in different languages and it learns
 ```
 
 ### Handling Edge Cases
 
 **Traditional Approach:**
-- Must anticipate and code every edge case
-- Requires updating multiple conditional branches
-- Often breaks when encountering unexpected inputs
+- Must anticipate every CSV variation (quoted fields, embedded commas, etc.)
+- Requires updating multiple conditional branches for each edge case
+- Often breaks when encountering unexpected column names or mixed data
+- Example: Spanish "Apellidos" field breaks English-focused logic
 
 **Agent Approach:**
-- Agent adapts to unexpected inputs
-- Combines tools creatively
-- Graceful degradation for edge cases
+- Agent adapts to unexpected CSV structures automatically
+- Combines tools creatively (extracts phone from notes field, etc.)
+- Graceful handling of international formats and mixed data
 
 ## The Paradigm Shift
 
@@ -269,8 +267,8 @@ This isn't just about AI replacing programmers. It's about **changing how we thi
 - **New**: "Here are your tools, here's the goal, figure it out"
 
 ### From Rigid to Flexible
-- **Old**: Program breaks if input doesn't match expected format
-- **New**: Agent adapts to variations and edge cases
+- **Old**: Program breaks if CSV doesn't match expected delimiter or column names
+- **New**: Agent adapts to different delimiters, languages, and data structures
 
 ### From Monolithic to Modular
 - **Old**: Complex branching logic in single functions
@@ -289,18 +287,18 @@ pytest tests/ -v
 ```
 
 The tests verify:
-- ✅ **Traditional approach**: Handles all supported formats correctly
-- ✅ **Agent approach**: Business logic tools work independently  
-- ✅ **Error handling**: Both approaches handle edge cases gracefully
+- ✅ **Traditional approach**: Handles supported CSV formats with explicit logic
+- ✅ **Agent approach**: Business logic tools work independently + **Real OpenAI integration tests**
+- ✅ **Error handling**: Both approaches handle edge cases (traditional breaks on international formats)
 - ✅ **Paradigm differences**: Tests demonstrate where each approach excels
-- ✅ **Integration**: Demo script works with and without API keys
+- ✅ **Integration**: Demo script works with and without API keys, real API calls in tests
 
 ## Try It Yourself
 
-1. Run both examples with the same inputs
-2. Try adding a new input format to each approach
-3. See which one is easier to extend and maintain
-4. Run the tests to see comprehensive coverage of both paradigms
+1. Run both examples with the same CSV inputs
+2. Try adding a new language/country format to each approach  
+3. See which one handles unexpected CSV structures better
+4. Run the tests to see comprehensive coverage including real OpenAI integration
 
 The future of programming isn't about writing fewer lines of code—it's about writing **better** code that's more flexible, maintainable, and adaptable.
 
