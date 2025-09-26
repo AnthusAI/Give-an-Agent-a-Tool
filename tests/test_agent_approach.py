@@ -4,153 +4,73 @@
 import json
 import os
 import unittest
-from unittest.mock import Mock, patch, MagicMock
-from agent_approach import ContactTools, AgentContactImporter
+from unittest.mock import Mock, patch
+from agent_approach import ContactStorage, AgentContactImporter
 
 
-class TestContactTools(unittest.TestCase):
-    """Test the business logic tools."""
+class TestContactStorage(unittest.TestCase):
+    """Test the business logic storage tool."""
     
     def setUp(self):
-        self.tools = ContactTools()
+        self.storage = ContactStorage()
     
-    def test_parse_csv_with_headers(self):
-        """Test CSV parsing with headers."""
-        csv_data = """First Name,Last Name,Email
-John,Doe,john@example.com
-Jane,Smith,jane@test.org"""
-        
-        result = self.tools.parse_csv(csv_data)
+    def test_file_contact_with_full_name_and_email(self):
+        """Test filing a contact with full name and email."""
+        result = self.storage.file_contact("John Doe", email="john@example.com")
         
         self.assertTrue(result["success"])
-        self.assertTrue(result["has_headers"])
-        self.assertEqual(result["delimiter"], ",")
-        self.assertEqual(len(result["rows"]), 2)
-        self.assertEqual(result["rows"][0]["first name"], "John")
-        self.assertEqual(result["rows"][0]["email"], "john@example.com")
-    
-    def test_parse_csv_without_headers(self):
-        """Test CSV parsing without headers."""
-        csv_data = """John Doe,john@example.com,555-123-4567
-Jane Smith,jane@test.org,555-987-6543"""
+        self.assertEqual(result["message"], "Filed contact: John Doe")
+        self.assertEqual(result["contact"]["first_name"], "John")
+        self.assertEqual(result["contact"]["last_name"], "Doe")
+        self.assertEqual(result["contact"]["email"], "john@example.com")
         
-        result = self.tools.parse_csv(csv_data)
+        # Check it was stored
+        contacts = self.storage.get_contacts()
+        self.assertEqual(len(contacts), 1)
+        self.assertEqual(contacts[0]["first_name"], "John")
+    
+    def test_file_contact_with_single_name_and_phone(self):
+        """Test filing a contact with single name and phone."""
+        result = self.storage.file_contact("Jane", phone="555-123-4567")
         
         self.assertTrue(result["success"])
-        self.assertFalse(result["has_headers"])
-        self.assertEqual(result["delimiter"], ",")
-        self.assertEqual(len(result["rows"]), 2)
-        self.assertEqual(result["rows"][0]["column_0"], "John Doe")
-        self.assertEqual(result["rows"][0]["column_1"], "john@example.com")
+        self.assertEqual(result["contact"]["first_name"], "Jane")
+        self.assertIsNone(result["contact"]["last_name"])
+        self.assertEqual(result["contact"]["phone"], "555-123-4567")
     
-    def test_parse_csv_pipe_delimiter(self):
-        """Test CSV parsing with pipe delimiter."""
-        csv_data = """John Doe|john@example.com|555-123-4567
-Jane Smith|jane@test.org|555-987-6543"""
-        
-        result = self.tools.parse_csv(csv_data)
+    def test_file_contact_with_both_email_and_phone(self):
+        """Test filing a contact with both email and phone."""
+        result = self.storage.file_contact(
+            "Jane Smith", 
+            email="jane@test.org", 
+            phone="555-987-6543"
+        )
         
         self.assertTrue(result["success"])
-        self.assertEqual(result["delimiter"], "|")
-        self.assertEqual(result["rows"][0]["column_0"], "John Doe")
+        self.assertEqual(result["contact"]["email"], "jane@test.org")
+        self.assertEqual(result["contact"]["phone"], "555-987-6543")
     
-    def test_normalize_contact_with_separate_names(self):
-        """Test contact normalization with separate first/last name fields."""
-        row = {
-            "first name": "John",
-            "last name": "Doe", 
-            "email": "john@example.com",
-            "phone": "555-123-4567",
-            "company": "Acme Corp"
-        }
+    def test_file_contact_requires_name(self):
+        """Test that name is required."""
+        result = self.storage.file_contact("", email="test@example.com")
         
-        result = self.tools.normalize_contact(row)
-        
-        self.assertEqual(result["first_name"], "John")
-        self.assertEqual(result["last_name"], "Doe")
-        self.assertEqual(result["email"], "john@example.com")
-        self.assertEqual(result["phone"], "(555) 123-4567")
-        self.assertEqual(result["company"], "Acme Corp")
+        self.assertFalse(result["success"])
+        self.assertIn("Name is required", result["error"])
     
-    def test_normalize_contact_with_full_name(self):
-        """Test contact normalization with full name field."""
-        row = {
-            "full name": "John Doe",
-            "email address": "john@example.com",
-            "work phone": "(555) 123-4567"
-        }
+    def test_file_contact_requires_email_or_phone(self):
+        """Test that either email or phone is required."""
+        result = self.storage.file_contact("John Doe")
         
-        result = self.tools.normalize_contact(row)
-        
-        self.assertEqual(result["first_name"], "John")
-        self.assertEqual(result["last_name"], "Doe")
-        self.assertEqual(result["email"], "john@example.com")
-        self.assertEqual(result["phone"], "(555) 123-4567")
+        self.assertFalse(result["success"])
+        self.assertIn("Either email or phone is required", result["error"])
     
-    def test_normalize_contact_international(self):
-        """Test contact normalization with international field names."""
-        row = {
-            "nombre": "Luis",
-            "apellidos": "García",
-            "correo": "luis@empresa.es",
-            "teléfono": "+34 91 123 4567"
-        }
+    def test_clear_contacts(self):
+        """Test clearing all contacts."""
+        self.storage.file_contact("John Doe", email="john@example.com")
+        self.assertEqual(len(self.storage.get_contacts()), 1)
         
-        result = self.tools.normalize_contact(row)
-        
-        self.assertEqual(result["first_name"], "Luis")
-        self.assertEqual(result["last_name"], "García")
-        self.assertEqual(result["email"], "luis@empresa.es")
-        self.assertEqual(result["phone"], "+34 91 123 4567")
-    
-    def test_normalize_contact_mixed_data(self):
-        """Test contact normalization with mixed data in fields."""
-        row = {
-            "contact": "John Doe",
-            "primary info": "john@example.com",
-            "notes": "Phone: 555-123-4567 Company: Acme"
-        }
-        
-        result = self.tools.normalize_contact(row)
-        
-        self.assertEqual(result["first_name"], "John")
-        self.assertEqual(result["last_name"], "Doe")
-        self.assertEqual(result["email"], "john@example.com")
-        self.assertEqual(result["phone"], "(555) 123-4567")
-    
-    def test_format_contacts(self):
-        """Test contact formatting."""
-        contacts = [
-            {
-                "first_name": "John",
-                "last_name": "Doe",
-                "email": "john@example.com",
-                "phone": "(555) 123-4567",
-                "company": "Acme Corp"
-            }
-        ]
-        
-        result = self.tools.format_contacts(contacts)
-        
-        # Should be valid JSON
-        parsed = json.loads(result)
-        self.assertEqual(len(parsed), 1)
-        self.assertEqual(parsed[0]["first_name"], "John")
-    
-    def test_detect_delimiter(self):
-        """Test delimiter detection."""
-        self.assertEqual(self.tools._detect_delimiter("a,b,c"), ",")
-        self.assertEqual(self.tools._detect_delimiter("a;b;c"), ";")
-        self.assertEqual(self.tools._detect_delimiter("a\tb\tc"), "\t")
-        self.assertEqual(self.tools._detect_delimiter("a|b|c"), "|")
-    
-    def test_normalize_phone(self):
-        """Test phone number normalization."""
-        self.assertEqual(self.tools._normalize_phone("5551234567"), "(555) 123-4567")
-        self.assertEqual(self.tools._normalize_phone("15551234567"), "+1 (555) 123-4567")
-        self.assertEqual(self.tools._normalize_phone("(555) 123-4567"), "(555) 123-4567")
-        self.assertEqual(self.tools._normalize_phone("555.123.4567"), "(555) 123-4567")
-        self.assertEqual(self.tools._normalize_phone("+34 91 123 4567"), "+34 91 123 4567")
+        self.storage.clear_contacts()
+        self.assertEqual(len(self.storage.get_contacts()), 0)
 
 
 class TestAgentContactImporter(unittest.TestCase):
@@ -182,12 +102,14 @@ Jane,Smith,jane@test.org,555-987-6543"""
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
         
-        # The response should mention the contacts or processing
-        result_lower = result.lower()
-        self.assertTrue(
-            any(term in result_lower for term in ['john', 'jane', 'contact', 'import', 'process']),
-            f"Response doesn't seem to mention the contacts: {result}"
-        )
+        # Check that contacts were actually filed
+        contacts = self.importer.get_contacts()
+        self.assertEqual(len(contacts), 2)
+        
+        # Verify contact data
+        names = [f"{c['first_name']} {c['last_name']}" for c in contacts]
+        self.assertIn("John Doe", names)
+        self.assertIn("Jane Smith", names)
     
     def test_import_international_csv_integration(self):
         """Integration test: Import international CSV format."""
@@ -201,17 +123,19 @@ María,López,maria@test.es,+34 93 987 6543"""
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
         
-        # Should handle the Spanish format
-        result_lower = result.lower()
-        self.assertTrue(
-            any(term in result_lower for term in ['luis', 'maría', 'garcia', 'lopez', 'contact']),
-            f"Response doesn't seem to handle Spanish names: {result}"
-        )
+        # Check that contacts were filed
+        contacts = self.importer.get_contacts()
+        self.assertEqual(len(contacts), 2)
+        
+        # Should handle Spanish names
+        names = [f"{c['first_name']} {c['last_name']}" for c in contacts]
+        self.assertIn("Luis García", names)
+        self.assertIn("María López", names)
     
     def test_import_pipe_delimited_integration(self):
         """Integration test: Import pipe-delimited CSV without headers."""
-        csv_data = """John Doe|john@example.com|555-123-4567|Acme Corp
-Jane Smith|jane@test.org|555-987-6543|Tech Inc"""
+        csv_data = """John Doe|john@example.com|555-123-4567
+Jane Smith|jane@test.org|555-987-6543"""
         
         result = self.importer.import_contacts(csv_data, "Import pipe-delimited data without headers")
         
@@ -219,12 +143,14 @@ Jane Smith|jane@test.org|555-987-6543|Tech Inc"""
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
         
-        # Should handle the pipe format and extract data
-        result_lower = result.lower()
-        self.assertTrue(
-            any(term in result_lower for term in ['john', 'jane', 'acme', 'tech', 'contact', 'parse', 'csv', 'data']),
-            f"Response doesn't seem to handle pipe-delimited format: {result}"
-        )
+        # Check that contacts were filed
+        contacts = self.importer.get_contacts()
+        self.assertEqual(len(contacts), 2)
+        
+        # Should extract names and emails correctly
+        emails = [c['email'] for c in contacts if c['email']]
+        self.assertIn("john@example.com", emails)
+        self.assertIn("jane@test.org", emails)
     
     def test_import_mixed_format_integration(self):
         """Integration test: Import CSV with mixed data in fields."""
@@ -238,37 +164,51 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org"""
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
         
+        # Check that contacts were filed
+        contacts = self.importer.get_contacts()
+        self.assertEqual(len(contacts), 2)
+        
         # Should extract data from mixed fields
-        result_lower = result.lower()
-        self.assertTrue(
-            any(term in result_lower for term in ['john', 'jane', 'email', 'phone', 'contact']),
-            f"Response doesn't seem to handle mixed format: {result}"
-        )
+        names = [f"{c['first_name']} {c['last_name']}" for c in contacts]
+        self.assertIn("John Doe", names)
+        self.assertIn("Jane Smith", names)
     
-    def test_agent_uses_tools_integration(self):
-        """Integration test: Verify agent actually uses the tools."""
+    def test_unexpected_format_integration(self):
+        """Integration test: Agent handles completely unexpected CSV format."""
+        # Test handling of completely unexpected CSV format
+        csv_data = """"Contact Info","Details","Extra"
+"Smith, Jane (Manager)","jane.smith@company.com | Mobile: +1-555-0123","Dept: Sales, Start: 2020"
+"Rodriguez, Carlos","carlos.r@email.com Phone: 555.987.6543","Engineering Team Lead\""""
+        
+        result = self.importer.import_contacts(csv_data, "Import contacts from messy legacy system export")
+        
+        # Verify we got a response
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 0)
+        
+        # Check that contacts were filed despite the unexpected format
+        contacts = self.importer.get_contacts()
+        self.assertEqual(len(contacts), 2)
+        
+        # Should handle names with titles and extract emails from mixed fields
+        names = [f"{c['first_name']} {c['last_name']}" for c in contacts]
+        emails = [c['email'] for c in contacts if c['email']]
+        
+        # Should extract Jane Smith and Carlos Rodriguez
+        self.assertTrue(any("Jane" in name for name in names))
+        self.assertTrue(any("Carlos" in name for name in names))
+        
+        # Should extract emails from mixed delimiter fields
+        self.assertTrue(any("jane.smith@company.com" in email for email in emails))
+        self.assertTrue(any("carlos.r@email.com" in email for email in emails))
+    
+    def test_agent_uses_file_contact_tool(self):
+        """Integration test: Verify agent actually uses the file_contact tool."""
         csv_data = """Name,Email
 Test User,test@example.com"""
         
-        # Patch the tools to track if they're called
-        original_parse_csv = self.importer.tools.parse_csv
-        original_normalize_contact = self.importer.tools.normalize_contact
-        
-        parse_csv_called = False
-        normalize_contact_called = False
-        
-        def track_parse_csv(*args, **kwargs):
-            nonlocal parse_csv_called
-            parse_csv_called = True
-            return original_parse_csv(*args, **kwargs)
-        
-        def track_normalize_contact(*args, **kwargs):
-            nonlocal normalize_contact_called
-            normalize_contact_called = True
-            return original_normalize_contact(*args, **kwargs)
-        
-        self.importer.tools.parse_csv = track_parse_csv
-        self.importer.tools.normalize_contact = track_normalize_contact
+        # Track tool usage by monitoring the storage
+        initial_count = len(self.importer.get_contacts())
         
         result = self.importer.import_contacts(csv_data, "Import simple contact")
         
@@ -276,9 +216,13 @@ Test User,test@example.com"""
         self.assertIsInstance(result, str)
         self.assertGreater(len(result), 0)
         
-        # Verify tools were actually called by the agent
-        self.assertTrue(parse_csv_called, "Agent should have called parse_csv tool")
-        # Note: normalize_contact might not always be called depending on agent's approach
+        # Verify the file_contact tool was actually called
+        final_count = len(self.importer.get_contacts())
+        self.assertGreater(final_count, initial_count, "Agent should have filed contacts using the tool")
+        
+        # Verify the contact was filed correctly
+        contacts = self.importer.get_contacts()
+        self.assertTrue(any("Test User" in f"{c['first_name']} {c['last_name']}" for c in contacts))
 
 
 if __name__ == "__main__":

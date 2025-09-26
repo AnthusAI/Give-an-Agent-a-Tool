@@ -45,6 +45,29 @@ Jane,Smith,jane@test.org"""
         self.assertEqual(len(contacts), 2)
         self.assertEqual(contacts[0]["first_name"], "John")
         self.assertEqual(contacts[0]["email"], "john@example.com")
+    
+    def test_agent_approach_works_with_api_key(self):
+        """Test that agent approach works with API key."""
+        api_key = os.getenv('OPENAI_API_KEY')
+        if not api_key:
+            self.skipTest("OPENAI_API_KEY not found - skipping agent test")
+        
+        from agent_approach import AgentContactImporter
+        
+        importer = AgentContactImporter()
+        csv_data = """Name,Email
+Test User,test@example.com"""
+        
+        result = importer.import_contacts(csv_data, "Test import")
+        
+        # Should get a response
+        self.assertIsInstance(result, str)
+        self.assertGreater(len(result), 0)
+        
+        # Should have filed the contact
+        contacts = importer.get_contacts()
+        self.assertEqual(len(contacts), 1)
+        self.assertTrue("Test User" in f"{contacts[0]['first_name']} {contacts[0]['last_name']}")
 
 
 if __name__ == "__main__":

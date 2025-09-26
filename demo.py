@@ -7,7 +7,6 @@ imperative approach and the agent-based approach to show the difference.
 """
 
 import os
-import json
 from traditional_approach import TraditionalContactImporter
 from agent_approach import AgentContactImporter
 
@@ -19,9 +18,9 @@ def run_demo():
     test_cases = [
         {
             "name": "Standard CRM Export",
-            "data": """First Name,Last Name,Email,Phone,Company
-John,Doe,john@example.com,555-123-4567,Acme Corp
-Jane,Smith,jane@test.org,555-987-6543,Tech Inc""",
+            "data": """First Name,Last Name,Email,Phone
+John,Doe,john@example.com,555-123-4567
+Jane,Smith,jane@test.org,555-987-6543""",
             "task": "Import standard contact list"
         },
         {
@@ -40,8 +39,8 @@ María,López,maria@test.es,+34 93 987 6543""",
         },
         {
             "name": "Pipe-Delimited No Headers",
-            "data": """John Doe|john@example.com|555-123-4567|Acme Corp
-Jane Smith|jane@test.org|555-987-6543|Tech Inc""",
+            "data": """John Doe|john@example.com|555-123-4567
+Jane Smith|jane@test.org|555-987-6543""",
             "task": "Import pipe-delimited data without headers"
         },
         {
@@ -50,6 +49,13 @@ Jane Smith|jane@test.org|555-987-6543|Tech Inc""",
 John Doe,john@example.com,Phone: 555-123-4567 Company: Acme
 Jane Smith,Call 555-987-6543,Email: jane@test.org""",
             "task": "Import contacts with mixed data in notes"
+        },
+        {
+            "name": "Unexpected Legacy System Export",
+            "data": """"Contact Info","Details","Extra"
+"Smith, Jane (Manager)","jane.smith@company.com | Mobile: +1-555-0123","Dept: Sales, Start: 2020"
+"Rodriguez, Carlos","carlos.r@email.com Phone: 555.987.6543","Engineering Team Lead\"""",
+            "task": "Import contacts from messy legacy system export"
         }
     ]
     
@@ -59,7 +65,7 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org""",
     print()
     print("This demo shows the same contact import tasks solved with two approaches:")
     print("1. Traditional Imperative Programming (explicit handling of every format)")
-    print("2. Agent-Based Programming (tools + intelligent delegation)")
+    print("2. Agent-Based Programming (single tool + intelligent delegation)")
     print()
     
     # Initialize processors
@@ -94,8 +100,7 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org""",
                 name = f"{contact['first_name'] or ''} {contact['last_name'] or ''}".strip()
                 email = contact['email'] or 'No email'
                 phone = contact['phone'] or 'No phone'
-                company = contact['company'] or 'No company'
-                print(f"     {j}. {name} | {email} | {phone} | {company}")
+                print(f"     {j}. {name} | {email} | {phone}")
         except Exception as e:
             print(f"   Result: ❌ Error - {e}")
         
@@ -106,12 +111,22 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org""",
             print("🤖 AGENT APPROACH:")
             try:
                 result = agent.import_contacts(test_case['data'], test_case['task'])
-                print("   Result:")
+                print("   Agent Response:")
                 # Format the agent's response nicely
                 lines = result.split('\n')
                 for line in lines:
                     if line.strip():
                         print(f"     {line}")
+                
+                # Show the contacts that were actually filed
+                contacts = agent.get_contacts()
+                print(f"   \n   Contacts Filed ({len(contacts)}):")
+                for j, contact in enumerate(contacts, 1):
+                    name = f"{contact['first_name'] or ''} {contact['last_name'] or ''}".strip()
+                    email = contact['email'] or 'No email'
+                    phone = contact['phone'] or 'No phone'
+                    print(f"     {j}. {name} | {email} | {phone}")
+                    
             except Exception as e:
                 print(f"   Result: ❌ Error - {e}")
         else:
@@ -135,7 +150,7 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org""",
     print()
     print("Agent Approach:")
     print("  ✅ Flexible - adapts to new CSV structures automatically")
-    print("  ✅ Simple business logic tools")
+    print("  ✅ Simple business logic (single file_contact tool)")
     print("  ✅ Easy to extend with new tools")
     print("  ✅ Handles international formats and languages")
     print("  ✅ Can extract data from mixed/unstructured fields")
@@ -148,7 +163,7 @@ Jane Smith,Call 555-987-6543,Email: jane@test.org""",
     print()
     print("Notice how the traditional approach requires explicit handling of every")
     print("possible CSV format, delimiter, and column name variation, while the")
-    print("agent approach adapts automatically to new formats using the same tools.")
+    print("agent approach adapts automatically to new formats using the same single tool.")
 
 
 if __name__ == "__main__":
