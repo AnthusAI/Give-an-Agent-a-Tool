@@ -246,3 +246,11 @@ pytest tests/ -v
 ---
 
 *"Give a man a fish and you feed him for a day. Teach a man to fish and you feed him for a lifetime. Give an agent a tool and nobody has to fish."*
+
+---
+
+Built by [Anthus AI Solutions](https://anth.us). We run this class of system in production.
+
+The programming idea behind SQLBot, Tactus, and the rest of the stack. [Give an Agent a Tool](https://anth.us/blog/give-an-agent-a-tool/)
+
+If you need this operated, not just cloned, [talk to us](https://anth.us).
